@@ -1,5 +1,6 @@
 package org.igot.common.cassandra;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -140,6 +141,51 @@ public class CassandraOperationImpl implements CassandraOperation {
             log.error("Error fetching records from {}: {}", tableName, e.getMessage(), e);
         }
         return response;
+    }
+
+    /**
+     * Retrieves all records matching the specified properties using pagination to handle large result sets.
+     * This method automatically handles pagination by fetching all pages of results and combining them into
+     * a single list. Unlike {@link #getRecordsByProperties}, this method does not limit the total number of
+     * results returned, but rather controls the page size for each query to manage memory efficiently.
+     *
+     * @param keyspaceName the name of the keyspace to query
+     * @param tableName the name of the table to query
+     * @param primaryKey map of column names to values for filtering (supports List for IN clause)
+     * @param fields specific columns to retrieve, or null for all columns
+     * @param pageSize the number of records to fetch in each page (controls memory usage)
+     * @return a list of all matching records, where each record is represented as a Map of column names to values
+     * @throws RuntimeException if there is an error executing the query (logged but not thrown)
+     */
+    public List<Map<String, Object>> getAllRecordsByProperties(String keyspaceName, String tableName,
+            Map<String, Object> primaryKey, List<String> fields, int pageSize) {
+        List<Map<String, Object>> allResults = new ArrayList<>();
+        ByteBuffer pagingState = null;
+        try {
+            do {
+                Select selectQuery = processQuery(keyspaceName, tableName, primaryKey, fields);
+                SimpleStatement statement = selectQuery.limit(pageSize).build();
+
+                if (pagingState != null) {
+                    statement = statement.setPagingState(pagingState);
+                }
+
+                CqlSession session = connectionManager.getSession(keyspaceName);
+                ResultSet resultSet = session.execute(statement);
+
+                List<Map<String, Object>> pageResults = cassandraUtil.createResponse(resultSet);
+                allResults.addAll(pageResults);
+
+                pagingState = resultSet.getExecutionInfo().getPagingState();
+            } while (pagingState != null);
+            log.info("CassandraOperationImpl::getAllRecordsByProperties: Fetched {} records from table: {}",
+                    allResults.size(), tableName);
+        } catch (Exception e) {
+            log.error(
+                    "CassandraOperationImpl::getAllRecordsByProperties: Failed to fetch all records for table {}: with primaryKey: {}",
+                    tableName, primaryKey, e);
+        }
+        return allResults;
     }
 
     /**

@@ -226,8 +226,6 @@ public class OutboundRequestHandlerServiceImpl {
 	 * @return the response as a Map, or null if the request fails
 	 */
     public Map<String, Object> fetchResultUsingPost(String uri, Object request, Map<String, String> headersValues) {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
         Map<String, Object> response = null;
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -240,13 +238,13 @@ public class OutboundRequestHandlerServiceImpl {
                 StringBuilder str = new StringBuilder(this.getClass().getCanonicalName()).append(".fetchResult")
                         .append(System.lineSeparator());
                 str.append("URI: ").append(uri).append(System.lineSeparator());
-                str.append("Request: ").append(mapper.writeValueAsString(request)).append(System.lineSeparator());
+                str.append("Request: ").append(objectMapper.writeValueAsString(request)).append(System.lineSeparator());
                 log.debug(str.toString());
             }
             response = restTemplate.postForObject(uri, entity, Map.class);
             if (log.isDebugEnabled()) {
                 StringBuilder str = new StringBuilder("Response: ");
-                str.append(mapper.writeValueAsString(response)).append(System.lineSeparator());
+                str.append(objectMapper.writeValueAsString(response)).append(System.lineSeparator());
                 log.debug(str.toString());
             }
         } catch (HttpStatusCodeException hce) {
@@ -261,16 +259,70 @@ public class OutboundRequestHandlerServiceImpl {
         } catch (JsonProcessingException e) {
             log.error(e.getMessage(), e);
             try {
-                log.warn("Error Response: " + mapper.writeValueAsString(response));
+                log.warn("Error Response: " + objectMapper.writeValueAsString(response));
             } catch (Exception e1) {
                 log.debug("Failed to parse error response: ", e1);
             }
         } catch (Exception e) {
             log.error("Failed to call rest URL: {}", uri, e);
             try {
-                log.warn("Error Response: " + mapper.writeValueAsString(response));
+                log.warn("Error Response: " + objectMapper.writeValueAsString(response));
             } catch (Exception e1) {
                 log.debug("Failed to parse error response: ", e1);
+            }
+        }
+        return response;
+    }
+
+	/**
+	 * Performs an HTTP GET request to the specified URI with custom headers.
+	 * <p>
+	 * This method sends a GET request with the provided custom headers and returns
+	 * the response as a Map. Unlike {@link #fetchResult(String)}, this method allows
+	 * passing custom HTTP headers which is useful for authentication tokens, API keys,
+	 * or other header-based configurations.
+	 * </p>
+	 * <p>
+	 * Error handling includes:
+	 * <ul>
+	 *   <li>Parsing and returning HTTP error responses as Maps</li>
+	 *   <li>Comprehensive logging of errors and responses</li>
+	 *   <li>Graceful handling of JSON processing exceptions</li>
+	 * </ul>
+	 * </p>
+	 *
+	 * @param uri the URI to fetch data from
+	 * @param headersValues optional map of custom header key-value pairs to include in the request
+	 * @return the response as a Map, or the error response if the request fails, or null if parsing fails
+	 */
+	public Map<String, Object> fetchUsingGetWithHeadersProfile(String uri, Map<String, String> headersValues) {
+        Map<String, Object> response = null;
+        try {
+            if (log.isDebugEnabled()) {
+                StringBuilder str = new StringBuilder(this.getClass().getCanonicalName())
+                        .append(CommonConstants.FETCH_RESULT_CONSTANT).append(System.lineSeparator());
+                str.append(CommonConstants.URI_CONSTANT).append(uri).append(System.lineSeparator());
+                log.debug(str.toString());
+            }
+            HttpHeaders headers = new HttpHeaders();
+            if (!MapUtils.isEmpty(headersValues)) {
+                headersValues.forEach((k, v) -> headers.set(k, v));
+            }
+            HttpEntity<Object> entity = new HttpEntity<>(headers);
+            response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class).getBody();
+        } catch (HttpClientErrorException e) {
+            try {
+                response = (new ObjectMapper()).readValue(e.getResponseBodyAsString(),
+                        new TypeReference<HashMap<String, Object>>() {
+                        });
+            } catch (Exception e1) {
+            }
+            log.error("Error received: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            try {
+                log.warn("Error Response: " + objectMapper.writeValueAsString(response));
+            } catch (Exception e1) {
             }
         }
         return response;

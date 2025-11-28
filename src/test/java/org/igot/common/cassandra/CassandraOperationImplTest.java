@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -19,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.cql.ExecutionInfo;
 import com.datastax.oss.driver.api.core.cql.PreparedStatement;
 import com.datastax.oss.driver.api.core.cql.ResultSet;
 import com.datastax.oss.driver.api.core.cql.SimpleStatement;
@@ -487,5 +489,288 @@ class CassandraOperationImplTest {
         ApiResponse response = (ApiResponse) result;
         assertEquals(CommonConstants.FAILED, response.get(CommonConstants.RESPONSE));
         assertTrue(response.get(CommonConstants.ERROR_MESSAGE).toString().contains("Insert failed"));
+    }
+
+    @Test
+    void testGetAllRecordsByProperties_Success_SinglePage() {
+        // Arrange
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put("id", "123");
+
+        List<String> fields = Arrays.asList("id", "name", "email");
+        int pageSize = 10;
+
+        List<Map<String, Object>> pageResults = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", "123");
+            row.put("name", "User" + i);
+            row.put("email", "user" + i + "@example.com");
+            pageResults.add(row);
+        }
+
+        ResultSet resultSet1 = mock(ResultSet.class);
+        ExecutionInfo executionInfo1 = mock(ExecutionInfo.class);
+
+        when(connectionManager.getSession(KEYSPACE_NAME)).thenReturn(session);
+        when(session.execute(any(SimpleStatement.class))).thenReturn(resultSet1);
+        when(resultSet1.getExecutionInfo()).thenReturn(executionInfo1);
+        when(executionInfo1.getPagingState()).thenReturn(null); // No more pages
+        when(cassandraUtil.createResponse(resultSet1)).thenReturn(pageResults);
+
+        // Act
+        List<Map<String, Object>> result = cassandraOperation.getAllRecordsByProperties(
+                KEYSPACE_NAME, TABLE_NAME, primaryKey, fields, pageSize);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(5, result.size());
+        assertEquals("User1", result.get(0).get("name"));
+        assertEquals("user5@example.com", result.get(4).get("email"));
+
+        verify(connectionManager).getSession(KEYSPACE_NAME);
+        verify(session, times(1)).execute(any(SimpleStatement.class));
+        verify(cassandraUtil).createResponse(resultSet1);
+    }
+
+    @Test
+    void testGetAllRecordsByProperties_Success_MultiplePages() {
+        // Arrange
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put("status", "active");
+
+        int pageSize = 10;
+
+        // First page results
+        List<Map<String, Object>> page1Results = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", String.valueOf(i));
+            row.put("status", "active");
+            page1Results.add(row);
+        }
+
+        // Second page results
+        List<Map<String, Object>> page2Results = new ArrayList<>();
+        for (int i = 11; i <= 20; i++) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", String.valueOf(i));
+            row.put("status", "active");
+            page2Results.add(row);
+        }
+
+        // Third page results
+        List<Map<String, Object>> page3Results = new ArrayList<>();
+        for (int i = 21; i <= 25; i++) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", String.valueOf(i));
+            row.put("status", "active");
+            page3Results.add(row);
+        }
+
+        ResultSet resultSet1 = mock(ResultSet.class);
+        ResultSet resultSet2 = mock(ResultSet.class);
+        ResultSet resultSet3 = mock(ResultSet.class);
+        ExecutionInfo executionInfo1 = mock(ExecutionInfo.class);
+        ExecutionInfo executionInfo2 = mock(ExecutionInfo.class);
+        ExecutionInfo executionInfo3 = mock(ExecutionInfo.class);
+        ByteBuffer pagingState1 = ByteBuffer.wrap(new byte[]{1});
+        ByteBuffer pagingState2 = ByteBuffer.wrap(new byte[]{2});
+
+        when(connectionManager.getSession(KEYSPACE_NAME)).thenReturn(session);
+        when(session.execute(any(SimpleStatement.class)))
+                .thenReturn(resultSet1, resultSet2, resultSet3);
+
+        when(resultSet1.getExecutionInfo()).thenReturn(executionInfo1);
+        when(resultSet2.getExecutionInfo()).thenReturn(executionInfo2);
+        when(resultSet3.getExecutionInfo()).thenReturn(executionInfo3);
+
+        when(executionInfo1.getPagingState()).thenReturn(pagingState1);
+        when(executionInfo2.getPagingState()).thenReturn(pagingState2);
+        when(executionInfo3.getPagingState()).thenReturn(null); // Last page
+
+        when(cassandraUtil.createResponse(resultSet1)).thenReturn(page1Results);
+        when(cassandraUtil.createResponse(resultSet2)).thenReturn(page2Results);
+        when(cassandraUtil.createResponse(resultSet3)).thenReturn(page3Results);
+
+        // Act
+        List<Map<String, Object>> result = cassandraOperation.getAllRecordsByProperties(
+                KEYSPACE_NAME, TABLE_NAME, primaryKey, null, pageSize);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(25, result.size());
+        assertEquals("1", result.get(0).get("id"));
+        assertEquals("10", result.get(9).get("id"));
+        assertEquals("11", result.get(10).get("id"));
+        assertEquals("25", result.get(24).get("id"));
+
+        verify(connectionManager, times(3)).getSession(KEYSPACE_NAME);
+        verify(session, times(3)).execute(any(SimpleStatement.class));
+        verify(cassandraUtil, times(3)).createResponse(any(ResultSet.class));
+    }
+
+    @Test
+    void testGetAllRecordsByProperties_Success_EmptyResults() {
+        // Arrange
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put("id", "non-existent");
+
+        int pageSize = 10;
+
+        List<Map<String, Object>> emptyResults = new ArrayList<>();
+
+        ResultSet resultSet1 = mock(ResultSet.class);
+        ExecutionInfo executionInfo1 = mock(ExecutionInfo.class);
+
+        when(connectionManager.getSession(KEYSPACE_NAME)).thenReturn(session);
+        when(session.execute(any(SimpleStatement.class))).thenReturn(resultSet1);
+        when(resultSet1.getExecutionInfo()).thenReturn(executionInfo1);
+        when(executionInfo1.getPagingState()).thenReturn(null);
+        when(cassandraUtil.createResponse(resultSet1)).thenReturn(emptyResults);
+
+        // Act
+        List<Map<String, Object>> result = cassandraOperation.getAllRecordsByProperties(
+                KEYSPACE_NAME, TABLE_NAME, primaryKey, null, pageSize);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+        verify(connectionManager).getSession(KEYSPACE_NAME);
+        verify(session, times(1)).execute(any(SimpleStatement.class));
+    }
+
+    @Test
+    void testGetAllRecordsByProperties_Success_WithSpecificFields() {
+        // Arrange
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put("department", "Engineering");
+
+        List<String> fields = Arrays.asList("id", "name");
+        int pageSize = 5;
+
+        List<Map<String, Object>> pageResults = new ArrayList<>();
+        for (int i = 1; i <= 3; i++) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", String.valueOf(i));
+            row.put("name", "Engineer" + i);
+            pageResults.add(row);
+        }
+
+        ResultSet resultSet1 = mock(ResultSet.class);
+        ExecutionInfo executionInfo1 = mock(ExecutionInfo.class);
+
+        when(connectionManager.getSession(KEYSPACE_NAME)).thenReturn(session);
+        when(session.execute(any(SimpleStatement.class))).thenReturn(resultSet1);
+        when(resultSet1.getExecutionInfo()).thenReturn(executionInfo1);
+        when(executionInfo1.getPagingState()).thenReturn(null);
+        when(cassandraUtil.createResponse(resultSet1)).thenReturn(pageResults);
+
+        // Act
+        List<Map<String, Object>> result = cassandraOperation.getAllRecordsByProperties(
+                KEYSPACE_NAME, TABLE_NAME, primaryKey, fields, pageSize);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(3, result.size());
+        assertEquals("Engineer1", result.get(0).get("name"));
+
+        verify(connectionManager).getSession(KEYSPACE_NAME);
+        verify(session).execute(any(SimpleStatement.class));
+    }
+
+    @Test
+    void testGetAllRecordsByProperties_Exception() {
+        // Arrange
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put("id", "123");
+
+        int pageSize = 10;
+
+        when(connectionManager.getSession(KEYSPACE_NAME)).thenReturn(session);
+        when(session.execute(any(SimpleStatement.class)))
+                .thenThrow(new RuntimeException("Query execution failed"));
+
+        // Act
+        List<Map<String, Object>> result = cassandraOperation.getAllRecordsByProperties(
+                KEYSPACE_NAME, TABLE_NAME, primaryKey, null, pageSize);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+        verify(connectionManager).getSession(KEYSPACE_NAME);
+        verify(session).execute(any(SimpleStatement.class));
+    }
+
+    @Test
+    void testGetAllRecordsByProperties_Success_NullPrimaryKey() {
+        // Arrange - null primary key should fetch all records
+        int pageSize = 10;
+
+        List<Map<String, Object>> pageResults = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", String.valueOf(i));
+            pageResults.add(row);
+        }
+
+        ResultSet resultSet1 = mock(ResultSet.class);
+        ExecutionInfo executionInfo1 = mock(ExecutionInfo.class);
+
+        when(connectionManager.getSession(KEYSPACE_NAME)).thenReturn(session);
+        when(session.execute(any(SimpleStatement.class))).thenReturn(resultSet1);
+        when(resultSet1.getExecutionInfo()).thenReturn(executionInfo1);
+        when(executionInfo1.getPagingState()).thenReturn(null);
+        when(cassandraUtil.createResponse(resultSet1)).thenReturn(pageResults);
+
+        // Act
+        List<Map<String, Object>> result = cassandraOperation.getAllRecordsByProperties(
+                KEYSPACE_NAME, TABLE_NAME, null, null, pageSize);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(10, result.size());
+
+        verify(connectionManager).getSession(KEYSPACE_NAME);
+        verify(session).execute(any(SimpleStatement.class));
+    }
+
+    @Test
+    void testGetAllRecordsByProperties_Success_LargePageSize() {
+        // Arrange
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put("category", "electronics");
+
+        int pageSize = 1000;
+
+        List<Map<String, Object>> pageResults = new ArrayList<>();
+        for (int i = 1; i <= 500; i++) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", String.valueOf(i));
+            row.put("category", "electronics");
+            pageResults.add(row);
+        }
+
+        ResultSet resultSet1 = mock(ResultSet.class);
+        ExecutionInfo executionInfo1 = mock(ExecutionInfo.class);
+
+        when(connectionManager.getSession(KEYSPACE_NAME)).thenReturn(session);
+        when(session.execute(any(SimpleStatement.class))).thenReturn(resultSet1);
+        when(resultSet1.getExecutionInfo()).thenReturn(executionInfo1);
+        when(executionInfo1.getPagingState()).thenReturn(null);
+        when(cassandraUtil.createResponse(resultSet1)).thenReturn(pageResults);
+
+        // Act
+        List<Map<String, Object>> result = cassandraOperation.getAllRecordsByProperties(
+                KEYSPACE_NAME, TABLE_NAME, primaryKey, null, pageSize);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(500, result.size());
+
+        verify(connectionManager).getSession(KEYSPACE_NAME);
+        verify(session).execute(any(SimpleStatement.class));
     }
 }

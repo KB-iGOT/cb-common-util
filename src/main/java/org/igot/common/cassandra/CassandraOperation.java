@@ -34,6 +34,23 @@ public interface CassandraOperation {
             Map<String, Object> propertyMap, List<String> fields, Integer limit);
 
     /**
+     * Retrieves all records matching the specified properties using pagination to handle large result sets.
+     * This method automatically handles pagination by fetching all pages of results and combining them into
+     * a single list. Unlike {@link #getRecordsByProperties}, this method does not limit the total number of
+     * results returned, but rather controls the page size for each query to manage memory efficiently.
+     *
+     * @param keyspaceName the name of the keyspace to query
+     * @param tableName the name of the table to query
+     * @param primaryKey map of column names to values for filtering (supports List for IN clause)
+     * @param fields specific columns to retrieve, or null for all columns
+     * @param pageSize the number of records to fetch in each page (controls memory usage)
+     * @return a list of all matching records, where each record is represented as a Map of column names to values
+     * @throws RuntimeException if there is an error executing the query (logged but not thrown)
+     */
+     public List<Map<String, Object>> getAllRecordsByProperties(String keyspaceName, String tableName,
+            Map<String, Object> primaryKey, List<String> fields, int pageSize);
+
+    /**
      * Updates a record in Cassandra identified by a composite key.
      *
      * @param keyspaceName the name of the keyspace containing the table

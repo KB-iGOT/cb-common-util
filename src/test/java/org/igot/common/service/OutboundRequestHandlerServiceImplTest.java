@@ -455,4 +455,221 @@ class OutboundRequestHandlerServiceImplTest {
         assertNull(result);
         verify(restTemplate, times(1)).postForObject(eq(TEST_URI), any(HttpEntity.class), eq(Map.class));
     }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_Success_WithHeaders() {
+        // Arrange
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer token123");
+        headers.put("X-API-Key", "api-key-456");
+        headers.put("X-Request-ID", "req-789");
+
+        Map<String, Object> expectedResponse = new HashMap<>();
+        expectedResponse.put("status", "success");
+        expectedResponse.put("userId", "12345");
+        expectedResponse.put("profile", "admin");
+
+        @SuppressWarnings("rawtypes")
+        ResponseEntity responseEntity = new ResponseEntity<>(expectedResponse, HttpStatus.OK);
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(responseEntity);
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, headers);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(expectedResponse, result);
+        assertEquals("success", result.get("status"));
+        assertEquals("12345", result.get("userId"));
+        assertEquals("admin", result.get("profile"));
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_Success_WithoutHeaders() {
+        // Arrange
+        Map<String, Object> expectedResponse = new HashMap<>();
+        expectedResponse.put("data", "test data");
+        expectedResponse.put("count", 10);
+
+        @SuppressWarnings("rawtypes")
+        ResponseEntity responseEntity = new ResponseEntity<>(expectedResponse, HttpStatus.OK);
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(responseEntity);
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, null);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(expectedResponse, result);
+        assertEquals("test data", result.get("data"));
+        assertEquals(10, result.get("count"));
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_Success_WithEmptyHeaders() {
+        // Arrange
+        Map<String, String> emptyHeaders = new HashMap<>();
+
+        Map<String, Object> expectedResponse = new HashMap<>();
+        expectedResponse.put("result", "ok");
+
+        @SuppressWarnings("rawtypes")
+        ResponseEntity responseEntity = new ResponseEntity<>(expectedResponse, HttpStatus.OK);
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(responseEntity);
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, emptyHeaders);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(expectedResponse, result);
+        assertEquals("ok", result.get("result"));
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_HttpClientErrorException() {
+        // Arrange
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer invalid-token");
+
+        String errorResponse = "{\"error\":\"Unauthorized\",\"message\":\"Invalid authentication token\"}";
+        HttpClientErrorException exception = new HttpClientErrorException(
+                HttpStatus.UNAUTHORIZED, "Unauthorized", errorResponse.getBytes(), null);
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenThrow(exception);
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, headers);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals("Unauthorized", result.get("error"));
+        assertEquals("Invalid authentication token", result.get("message"));
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_HttpClientErrorException_InvalidJson() {
+        // Arrange
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer token");
+
+        String invalidErrorResponse = "This is not valid JSON";
+        HttpClientErrorException exception = new HttpClientErrorException(
+                HttpStatus.BAD_REQUEST, "Bad Request", invalidErrorResponse.getBytes(), null);
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenThrow(exception);
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, headers);
+
+        // Assert - Should return null when JSON parsing fails
+        assertNull(result);
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_GenericException() {
+        // Arrange
+        Map<String, String> headers = new HashMap<>();
+        headers.put("X-Custom-Header", "value");
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenThrow(new RuntimeException("Network timeout"));
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, headers);
+
+        // Assert
+        assertNull(result);
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_MultipleHeaders() {
+        // Arrange
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer token");
+        headers.put("X-API-Key", "api-key");
+        headers.put("Accept", "application/json");
+        headers.put("X-Request-ID", "12345");
+        headers.put("X-Client-Version", "1.0.0");
+
+        Map<String, Object> expectedResponse = new HashMap<>();
+        expectedResponse.put("authenticated", true);
+        expectedResponse.put("data", "sensitive information");
+
+        @SuppressWarnings("rawtypes")
+        ResponseEntity responseEntity = new ResponseEntity<>(expectedResponse, HttpStatus.OK);
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(responseEntity);
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, headers);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(expectedResponse, result);
+        assertEquals(true, result.get("authenticated"));
+        assertEquals("sensitive information", result.get("data"));
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_ForbiddenError() {
+        // Arrange
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer valid-token-no-permission");
+
+        String errorResponse = "{\"error\":\"Forbidden\",\"message\":\"Insufficient permissions\"}";
+        HttpClientErrorException exception = new HttpClientErrorException(
+                HttpStatus.FORBIDDEN, "Forbidden", errorResponse.getBytes(), null);
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenThrow(exception);
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, headers);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals("Forbidden", result.get("error"));
+        assertEquals("Insufficient permissions", result.get("message"));
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
+
+    @Test
+    void testFetchUsingGetWithHeadersProfile_NotFoundError() {
+        // Arrange
+        Map<String, String> headers = new HashMap<>();
+        headers.put("X-Request-ID", "req-123");
+
+        String errorResponse = "{\"error\":\"Not Found\",\"message\":\"Resource does not exist\"}";
+        HttpClientErrorException exception = new HttpClientErrorException(
+                HttpStatus.NOT_FOUND, "Not Found", errorResponse.getBytes(), null);
+
+        when(restTemplate.exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenThrow(exception);
+
+        // Act
+        Map<String, Object> result = service.fetchUsingGetWithHeadersProfile(TEST_URI, headers);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals("Not Found", result.get("error"));
+        assertEquals("Resource does not exist", result.get("message"));
+        verify(restTemplate, times(1)).exchange(eq(TEST_URI), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class));
+    }
 }

@@ -36,4 +36,8 @@ public class CommonConstants {
     public static final String RESPONSE = "response";
     public static final String ERROR_MESSAGE = "errmsg";
     public static final String EXCEPTION_MSG_DELETE = "Exception occurred while deleting record from ";
+    public static final String SUNBIRD_ENCRYPTION = "sunbird_encryption";
+    public static final String ON = "ON";
+    public static final String ENCRYPTION_KEY = "sunbird_encryption_key";
+    public static final String SERVER_ERROR = "SERVER_ERROR";
 }

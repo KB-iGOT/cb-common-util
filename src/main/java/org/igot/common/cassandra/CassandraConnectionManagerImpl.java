@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 import org.igot.common.CommonConstants;
 import org.igot.common.CustomException;
 import org.igot.common.PropertiesCache;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.annotation.PostConstruct;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -32,31 +32,40 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
     private static final Map<String, CqlSession> cassandraSessionMap = new ConcurrentHashMap<>(2);
     private static CqlSession session;
 
-    @Autowired
-    PropertiesCache propertiesCache;
+    private final PropertiesCache propertiesCache;
 
     /**
-     * Method invoked after bean creation for initialization
+     * Constructor injection ensures propertiesCache is available before use.
      */
-    public CassandraConnectionManagerImpl() {
-        // Initialize the connection and register shutdown hook
+    public CassandraConnectionManagerImpl(PropertiesCache propertiesCache) {
+        this.propertiesCache = propertiesCache;
+    }
+
+    /**
+     * Method invoked after bean creation for initialization.
+     * Must use @PostConstruct so that all dependencies are injected before
+     * connecting.
+     */
+    @PostConstruct
+    public void init() {
         registerShutdownHook();
         createCassandraConnection();
     }
 
     /**
      * Retrieves a session for the specified keyspace.
-     * If a session for the keyspace already exists, returns it; otherwise, creates a new session.
+     * If a session for the keyspace already exists, returns it; otherwise, creates
+     * a new session.
      *
      * @param keyspaceName The keyspace for which to retrieve the session.
      * @return The session object for the specified keyspace.
-     * @throws Exception 
+     * @throws Exception
      */
     @Override
     public CqlSession getSession(String keyspaceName) {
         // Check if session for keyspace already exists
         CqlSession currentSession = cassandraSessionMap.get(keyspaceName);
-        if (currentSession != null&& !currentSession.isClosed()) {
+        if (currentSession != null && !currentSession.isClosed()) {
             return currentSession;
         } else {
             // Create new session scoped to keyspace using the USE command
@@ -72,7 +81,7 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
     private CqlSession createCassandraConnectionWithKeySpaces(String keySpaceName) {
         try {
             // Load the properties required for connection
-            
+
             String cassandraHost = propertiesCache.getProperty(CommonConstants.CASSANDRA_CONFIG_HOST);
             if (!StringUtils.hasLength(cassandraHost)) {
                 throw new CustomException(
@@ -92,15 +101,18 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
                     .withString(DefaultDriverOption.REQUEST_CONSISTENCY, getConsistencyLevel().name())
                     .withString(DefaultDriverOption.LOAD_BALANCING_LOCAL_DATACENTER, "datacenter1")
                     .withInt(DefaultDriverOption.CONNECTION_POOL_LOCAL_SIZE,
-                            Integer.parseInt(propertiesCache.getProperty(CommonConstants.CORE_CONNECTIONS_PER_HOST_FOR_LOCAL)))
+                            Integer.parseInt(
+                                    propertiesCache.getProperty(CommonConstants.CORE_CONNECTIONS_PER_HOST_FOR_LOCAL)))
                     .withInt(DefaultDriverOption.CONNECTION_POOL_REMOTE_SIZE,
-                            Integer.parseInt(propertiesCache.getProperty(CommonConstants.CORE_CONNECTIONS_PER_HOST_FOR_REMOTE)))
+                            Integer.parseInt(
+                                    propertiesCache.getProperty(CommonConstants.CORE_CONNECTIONS_PER_HOST_FOR_REMOTE)))
                     .withInt(DefaultDriverOption.HEARTBEAT_INTERVAL,
                             Integer.parseInt(propertiesCache.getProperty(CommonConstants.HEARTBEAT_INTERVAL)))
                     .withInt(DefaultDriverOption.CONNECTION_INIT_QUERY_TIMEOUT, 10000)
                     .withInt(DefaultDriverOption.REQUEST_TIMEOUT, 10000)
                     .withString(DefaultDriverOption.PROTOCOL_VERSION, ProtocolVersion.V4.toString())
-                    .withClass(DefaultDriverOption.RETRY_POLICY_CLASS, com.datastax.oss.driver.internal.core.retry.DefaultRetryPolicy.class)
+                    .withClass(DefaultDriverOption.RETRY_POLICY_CLASS,
+                            com.datastax.oss.driver.internal.core.retry.DefaultRetryPolicy.class)
                     .withClass(DefaultDriverOption.TIMESTAMP_GENERATOR_CLASS, AtomicTimestampGenerator.class)
                     .build();
             CqlSession sessionWithKeyspaces;
@@ -124,7 +136,8 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
             log.info(String.format("Connected to cluster: %s", metadata.getClusterName()));
             // Log nodes in the cluster
             for (Node host : metadata.getNodes().values()) {
-                log.info(String.format("Datacenter: %s; Host: %s; Rack: %s", host.getDatacenter(), host.getEndPoint(), host.getRack()));
+                log.info(String.format("Datacenter: %s; Host: %s; Rack: %s", host.getDatacenter(), host.getEndPoint(),
+                        host.getRack()));
             }
             return sessionWithKeyspaces;
         } catch (Exception e) {
@@ -156,7 +169,8 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
     private ConsistencyLevel getConsistencyLevel() {
         String consistency = propertiesCache.getProperty(CommonConstants.SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL);
         log.info("CassandraConnectionManagerImpl:getConsistencyLevel: level = " + consistency);
-        if (!StringUtils.hasLength(consistency)) return null;
+        if (!StringUtils.hasLength(consistency))
+            return null;
 
         try {
             return DefaultConsistencyLevel.valueOf(consistency.toUpperCase());
@@ -166,8 +180,6 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
         }
         return null;
     }
-
-
 
     /**
      * Registers a shutdown hook to clean-up resources

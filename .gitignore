@@ -210,3 +210,8 @@ target/classes/org/igot/common/crypto/BASE64Decoder.class
 target/classes/org/igot/common/crypto/CharacterDecoder.class
 target/classes/org/igot/common/crypto/DecryptionService.class
 target/classes/org/igot/common/crypto/DefaultDecryptionServiceImpl.class
+target/classes/org/igot/common/.DS_Store
+target/classes/org/igot/common/CommonAutoConfiguration.class
+target/test-classes/org/igot/common/.DS_Store
+.vscode/settings.json
+.DS_Store

@@ -223,3 +223,6 @@ target/apidocs/org/igot/common/auth/UserDetails.html
 target/apidocs/org/igot/common/auth/class-use/UserDetails.html
 target/apidocs/org/igot/common/class-use/CommonAutoConfiguration.html
 target/classes/org/igot/common/auth/UserDetails.class
+target/common-util-1.0.4-javadoc.jar
+target/common-util-1.0.4-sources.jar
+target/common-util-1.0.4.jar

@@ -7,6 +7,7 @@ public class CommonConstants {
     public static final String API_VERSION_1 = "1.0";
     public static final String DOT_SEPARATOR = ".";
     public static final String SHA_256_WITH_RSA = "SHA256withRSA";
+    public static final String ISS = "iss";
     public static final String SUB = "sub";
     public static final String _UNAUTHORIZED = "UNAUTHORIZED";
     public static final String ACCESS_TOKEN_PUBLICKEY_BASEPATH = "accesstoken.publickey.basepath";
@@ -40,4 +41,9 @@ public class CommonConstants {
     public static final String ON = "ON";
     public static final String ENCRYPTION_KEY = "sunbird_encryption_key";
     public static final String SERVER_ERROR = "SERVER_ERROR";
+    public static final String NAME = "name";
+    public static final String ORG = "org";
+    public static final String GROUP = "group";
+    public static final String DESIGNATION = "designation";
+    public static final String USER_ROLES = "user_roles";
 }

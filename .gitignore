@@ -215,3 +215,11 @@ target/classes/org/igot/common/CommonAutoConfiguration.class
 target/test-classes/org/igot/common/.DS_Store
 .vscode/settings.json
 .DS_Store
+target/common-util-1.0.3-javadoc.jar
+target/common-util-1.0.3-sources.jar
+target/common-util-1.0.3.jar
+target/apidocs/org/igot/common/CommonAutoConfiguration.html
+target/apidocs/org/igot/common/auth/UserDetails.html
+target/apidocs/org/igot/common/auth/class-use/UserDetails.html
+target/apidocs/org/igot/common/class-use/CommonAutoConfiguration.html
+target/classes/org/igot/common/auth/UserDetails.class

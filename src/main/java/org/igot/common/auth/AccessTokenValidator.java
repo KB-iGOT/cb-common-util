@@ -1,8 +1,10 @@
 package org.igot.common.auth;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.collections4.MapUtils;
@@ -295,5 +297,64 @@ public class AccessTokenValidator {
             log.error("Exception in extractTokenPayload: ", ex);
         }
         return tokenPayload;
+    }
+
+    public UserDetails fetchUserDetailsFromToken(String accessToken) {
+        // Initialize clientAccessTokenId to null
+        UserDetails userDetails = new UserDetails();
+        // Check if the accessToken is not null
+        if (StringUtils.hasLength(accessToken)) {
+            String userId = CommonConstants._UNAUTHORIZED;
+            try {
+                Map<String, Object> payload = validateToken(accessToken);
+                if (MapUtils.isNotEmpty(payload) && checkIss((String) payload.get(CommonConstants.ISS))) {
+                    String sub = (String) payload.get(CommonConstants.SUB);
+                    if (StringUtils.hasLength(sub)) {
+                        int pos = sub.lastIndexOf(":");
+                        userId = sub.substring(pos + 1);
+                    }
+                    userDetails.setUserId(userId);
+
+                    Object nameObj = payload.get(CommonConstants.NAME);
+                    if (nameObj != null && StringUtils.hasLength(nameObj.toString())) {
+                        userDetails.setName(nameObj.toString());
+                    }
+
+                    Object orgObj = payload.get(CommonConstants.ORG);
+                    if (orgObj != null && StringUtils.hasLength(orgObj.toString())) {
+                        userDetails.setOrg(orgObj.toString());
+                    }
+
+                    Object groupObj = payload.get(CommonConstants.GROUP);
+                    if (groupObj != null && StringUtils.hasLength(groupObj.toString())) {
+                        userDetails.setGroup(groupObj.toString());
+                    }
+
+                    Object designationObj = payload.get(CommonConstants.DESIGNATION);
+                    if (designationObj != null && StringUtils.hasLength(designationObj.toString())) {
+                        userDetails.setDesignation(designationObj.toString());
+                    }
+
+                    Object userRolesObj = payload.get(CommonConstants.USER_ROLES);
+                    if (userRolesObj instanceof List) {
+                        List<?> list = (List<?>) userRolesObj;
+                        if (!list.isEmpty()) {
+                            List<String> roles = new ArrayList<>();
+                            for (Object item : list) {
+                                if (item != null && StringUtils.hasLength(item.toString())) {
+                                    roles.add(item.toString());
+                                }
+                            }
+                            if (!roles.isEmpty()) {
+                                userDetails.setUserRoles(roles);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.error("Exception in fetchUserDetailsFromToken: error: {}", ex.getMessage(), ex);
+            }
+        }
+        return userDetails;
     }
 }

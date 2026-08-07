@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Signature;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -196,6 +197,51 @@ class AccessTokenValidatorTest {
         Map<String, Object> result = validator.extractTokenPayload(invalidToken);
 
         assertTrue(result.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Should extract complete user details from valid token in fetchUserDetailsFromToken")
+    void fetchUserDetailsFromToken_ValidToken_ReturnsUserDetails() throws Exception {
+        Map<String, Object> payload = createPayload();
+        payload.put("name", "Abbie Adams");
+        payload.put("org", "0136881030379683849");
+        payload.put("group", "group123");
+        payload.put("designation", "MDO_ADMIN");
+        payload.put("user_roles", Arrays.asList("MDO_ADMIN", "MENTOR"));
+
+        String token = createTestToken("test-key", payload, keyPair);
+        KeyData keyData = new KeyData("test-key", keyPair.getPublic());
+
+        when(keyManager.getPublicKey("test-key")).thenReturn(keyData);
+        when(propertiesCache.getProperty(CommonConstants.SSO_URL)).thenReturn("https://sso.example.com/");
+        when(propertiesCache.getProperty(CommonConstants.SSO_REALM)).thenReturn("myrealm");
+
+        UserDetails result = validator.fetchUserDetailsFromToken(token);
+
+        assertNotNull(result);
+        assertEquals("user123", result.getUserId());
+        assertEquals("Abbie Adams", result.getName());
+        assertEquals("0136881030379683849", result.getOrg());
+        assertEquals("group123", result.getGroup());
+        assertEquals("MDO_ADMIN", result.getDesignation());
+        assertEquals(Arrays.asList("MDO_ADMIN", "MENTOR"), result.getUserRoles());
+    }
+
+    @Test
+    @DisplayName("Should return empty user details for invalid token in fetchUserDetailsFromToken")
+    void fetchUserDetailsFromToken_InvalidToken_ReturnsEmptyUserDetails() {
+        String invalidToken = "invalid.token.here";
+
+        UserDetails result = validator.fetchUserDetailsFromToken(invalidToken);
+
+        assertNotNull(result);
+        assertNull(result.getUserId());
+        assertNull(result.getName());
+        assertNull(result.getOrg());
+        assertNull(result.getGroup());
+        assertNull(result.getDesignation());
+        assertNull(result.getDesignations());
+        assertNull(result.getUserRoles());
     }
 
     // Helper methods

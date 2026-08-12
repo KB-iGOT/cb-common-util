@@ -299,9 +299,8 @@ public class AccessTokenValidator {
         return tokenPayload;
     }
 
-    public UserDetails fetchUserDetailsFromToken(String accessToken) {
-        // Initialize clientAccessTokenId to null
-        UserDetails userDetails = new UserDetails();
+    public UserDetails fetchUserDetailsFromToken(String accessToken, ApiResponse response) {
+        UserDetails userDetails = null;
         // Check if the accessToken is not null
         if (StringUtils.hasLength(accessToken)) {
             String userId = CommonConstants._UNAUTHORIZED;
@@ -313,6 +312,13 @@ public class AccessTokenValidator {
                         int pos = sub.lastIndexOf(":");
                         userId = sub.substring(pos + 1);
                     }
+                    if (CommonConstants._UNAUTHORIZED.equalsIgnoreCase(userId)) {
+                        response.getParams().setStatus(CommonConstants.FAILED);
+                        response.getParams().setErrMsg(CommonConstants.ACCESS_TOKEN_IS_EXPIRED);
+                        response.setResponseCode(HttpStatus.UNAUTHORIZED);
+                        return null;
+                    }
+                    userDetails = new UserDetails();
                     userDetails.setUserId(userId);
 
                     Object nameObj = payload.get(CommonConstants.NAME);
@@ -353,6 +359,10 @@ public class AccessTokenValidator {
                 }
             } catch (Exception ex) {
                 log.error("Exception in fetchUserDetailsFromToken: error: {}", ex.getMessage(), ex);
+                response.getParams().setStatus(CommonConstants.FAILED);
+                response.getParams().setErrMsg(CommonConstants.ACCESS_TOKEN_VALIDATION_FAILED);
+                response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
+                userDetails = null;
             }
         }
         return userDetails;

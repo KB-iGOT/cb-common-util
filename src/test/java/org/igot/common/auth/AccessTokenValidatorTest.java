@@ -216,7 +216,8 @@ class AccessTokenValidatorTest {
         when(propertiesCache.getProperty(CommonConstants.SSO_URL)).thenReturn("https://sso.example.com/");
         when(propertiesCache.getProperty(CommonConstants.SSO_REALM)).thenReturn("myrealm");
 
-        UserDetails result = validator.fetchUserDetailsFromToken(token);
+        ApiResponse response = new ApiResponse("test-api");
+        UserDetails result = validator.fetchUserDetailsFromToken(token, response);
 
         assertNotNull(result);
         assertEquals("user123", result.getUserId());
@@ -228,20 +229,14 @@ class AccessTokenValidatorTest {
     }
 
     @Test
-    @DisplayName("Should return empty user details for invalid token in fetchUserDetailsFromToken")
-    void fetchUserDetailsFromToken_InvalidToken_ReturnsEmptyUserDetails() {
+    @DisplayName("Should return null for invalid token in fetchUserDetailsFromToken")
+    void fetchUserDetailsFromToken_InvalidToken_ReturnsNull() {
         String invalidToken = "invalid.token.here";
+        ApiResponse response = new ApiResponse("test-api");
 
-        UserDetails result = validator.fetchUserDetailsFromToken(invalidToken);
+        UserDetails result = validator.fetchUserDetailsFromToken(invalidToken, response);
 
-        assertNotNull(result);
-        assertNull(result.getUserId());
-        assertNull(result.getName());
-        assertNull(result.getOrg());
-        assertNull(result.getGroup());
-        assertNull(result.getDesignation());
-        assertNull(result.getDesignations());
-        assertNull(result.getUserRoles());
+        assertNull(result);
     }
 
     // Helper methods
